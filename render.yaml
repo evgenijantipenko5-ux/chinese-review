@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: chinese-review
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: EMAIL_PASS
+        sync: false
+      - key: PUBLIC_URL
+        sync: false

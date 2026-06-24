@@ -1,0 +1,4 @@
+node_modules/
+uploads/
+submissions.json
+.env
