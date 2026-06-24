@@ -5,7 +5,7 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
-      - key: EMAIL_PASS
+      - key: SENDGRID_API_KEY
         sync: false
       - key: PUBLIC_URL
         sync: false

@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 const cors = require('cors');
 const crypto = require('crypto');
 const path = require('path');
@@ -29,19 +29,10 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// --- Nodemailer transporter (Gmail) ---
-let transporter = null;
-if (process.env.EMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-            user: 'evg.alis.2001@gmail.com',
-            pass: process.env.EMAIL_PASS
-        },
-        connectionTimeout: 10000
-    });
+// --- SendGrid mail ---
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || process.env.SENDGRID_API_KEY_ENV;
+if (SENDGRID_API_KEY) {
+    sgMail.setApiKey(SENDGRID_API_KEY);
 }
 
 // POST /submit — receive photo, send email with approve/reject buttons
@@ -65,14 +56,14 @@ app.post('/submit', upload.single('photo'), async (req, res) => {
             });
         }
 
-        if (!transporter) {
-            console.log(`EMAIL NOT SENT — EMAIL_PASS not configured`);
-            return res.status(500).json({ ok: false, error: 'EMAIL_PASS not configured on server' });
+        if (!SENDGRID_API_KEY) {
+            console.log(`EMAIL NOT SENT — SENDGRID_API_KEY not configured`);
+            return res.status(500).json({ ok: false, error: 'SendGrid not configured on server' });
         }
 
-        await transporter.sendMail({
-            from: 'evg.alis.2001@gmail.com',
+        const msg = {
             to: 'evg.alis.2001@gmail.com',
+            from: 'evg.alis.2001@gmail.com',
             subject: `📄 Проверка иероглифов от ${name}`,
             html: `
                 <div style="font-family:sans-serif;max-width:500px;margin:0 auto;text-align:center;">
@@ -85,8 +76,17 @@ app.post('/submit', upload.single('photo'), async (req, res) => {
                     </div>
                 </div>
             `,
-            attachments
-        });
+        };
+        if (req.file) {
+            const fileData = fs.readFileSync(req.file.path);
+            msg.attachments = [{
+                content: fileData.toString('base64'),
+                filename: req.file.originalname || 'photo.jpg',
+                type: req.file.mimetype || 'image/jpeg',
+                disposition: 'attachment'
+            }];
+        }
+        await sgMail.send(msg);
         console.log(`Email sent for ${id}`);
 
         res.json({ ok: true, id });
@@ -130,16 +130,9 @@ app.get('/status/:id', (req, res) => {
 app.listen(PORT, () => {
     console.log(`\n🚀 Сервер запущен: ${PUBLIC_URL}`);
     console.log(`📧 Письма приходят на evg.alis.2001@gmail.com`);
-    if (!transporter) {
-        console.log(`\n⚠️  EMAIL_PASS не указан. Письма НЕ отправляются.`);
-        console.log(`   Создай .env файл (рядом с server.js) с таким содержимым:`);
-        console.log(`   EMAIL_PASS=твой_пароль_приложения`);
-        console.log(`   PUBLIC_URL=https://твой-домен.com`);
-        console.log(`\n   Как получить пароль приложения Gmail:`);
-        console.log(`   1. https://myaccount.google.com/security → 2-этапная аутентификация`);
-        console.log(`   2. https://myaccount.google.com/apppasswords → создать пароль`);
-        console.log(`   3. Скопировать пароль в .env`);
-        console.log(`\n   Для локального теста используй ngrok:`);
-        console.log(`   ngrok http 3000 → скопировать URL в PUBLIC_URL`);
+    if (!SENDGRID_API_KEY) {
+        console.log(`\n⚠️  SENDGRID_API_KEY не указан. Письма НЕ отправляются.`);
+        console.log(`   Добавь SendGrid через Render Dashboard:`);
+        console.log(`   Render Dashboard → Environment → Add SendGrid`);
     }
 });
