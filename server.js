@@ -33,11 +33,14 @@ const upload = multer({
 let transporter = null;
 if (process.env.EMAIL_PASS) {
     transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
         auth: {
             user: 'evg.alis.2001@gmail.com',
             pass: process.env.EMAIL_PASS
-        }
+        },
+        connectionTimeout: 10000
     });
 }
 
@@ -62,30 +65,29 @@ app.post('/submit', upload.single('photo'), async (req, res) => {
             });
         }
 
-        if (transporter) {
-            await transporter.sendMail({
-                from: 'evg.alis.2001@gmail.com',
-                to: 'evg.alis.2001@gmail.com',
-                subject: `📄 Проверка иероглифов от ${name}`,
-                html: `
-                    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;text-align:center;">
-                        <h2 style="color:#3D2A4A;">📄 Проверка иероглифов</h2>
-                        <p style="color:#5A4A6A;">Ученик: <strong>${name}</strong></p>
-                        <p style="color:#8A7A9A;">Фото во вложении</p>
-                        <div style="margin:32px 0;display:flex;gap:12px;justify-content:center;">
-                            <a href="${approveUrl}" style="display:inline-block;padding:14px 32px;border-radius:50px;background:#2EA85C;color:#fff;text-decoration:none;font-weight:700;font-size:16px;">✅ Одобрить</a>
-                            <a href="${rejectUrl}" style="display:inline-block;padding:14px 32px;border-radius:50px;background:#C85050;color:#fff;text-decoration:none;font-weight:700;font-size:16px;">❌ Не одобрить</a>
-                        </div>
-                    </div>
-                `,
-                attachments
-            });
-            console.log(`Email sent for ${id}`);
-        } else {
-            console.log(`EMAIL NOT SENT — configure EMAIL_PASS in .env`);
-            console.log(`Approve: ${approveUrl}`);
-            console.log(`Reject: ${rejectUrl}`);
+        if (!transporter) {
+            console.log(`EMAIL NOT SENT — EMAIL_PASS not configured`);
+            return res.status(500).json({ ok: false, error: 'EMAIL_PASS not configured on server' });
         }
+
+        await transporter.sendMail({
+            from: 'evg.alis.2001@gmail.com',
+            to: 'evg.alis.2001@gmail.com',
+            subject: `📄 Проверка иероглифов от ${name}`,
+            html: `
+                <div style="font-family:sans-serif;max-width:500px;margin:0 auto;text-align:center;">
+                    <h2 style="color:#3D2A4A;">📄 Проверка иероглифов</h2>
+                    <p style="color:#5A4A6A;">Ученик: <strong>${name}</strong></p>
+                    <p style="color:#8A7A9A;">Фото во вложении</p>
+                    <div style="margin:32px 0;display:flex;gap:12px;justify-content:center;">
+                        <a href="${approveUrl}" style="display:inline-block;padding:14px 32px;border-radius:50px;background:#2EA85C;color:#fff;text-decoration:none;font-weight:700;font-size:16px;">✅ Одобрить</a>
+                        <a href="${rejectUrl}" style="display:inline-block;padding:14px 32px;border-radius:50px;background:#C85050;color:#fff;text-decoration:none;font-weight:700;font-size:16px;">❌ Не одобрить</a>
+                    </div>
+                </div>
+            `,
+            attachments
+        });
+        console.log(`Email sent for ${id}`);
 
         res.json({ ok: true, id });
     } catch (err) {
